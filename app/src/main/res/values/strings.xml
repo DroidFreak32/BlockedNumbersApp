@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Blocked Numbers</string>
+    <string name="export_blocked_numbers">Export Blocked Numbers</string>
+    <string name="import_blocked_numbers">Import Blocked Numbers</string>
+</resources>
