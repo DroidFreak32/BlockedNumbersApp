@@ -26,7 +26,7 @@ import android.Manifest;
 
 import androidx.core.app.ActivityCompat;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements BlockedNumbersAdapter.OnDeleteClickListener {
     private static final int REQUEST_CODE_ROLE_DIALER = 1;
     private static final int REQUEST_CODE_PERMISSIONS = 2;
     private static final String[] REQUIRED_PERMISSIONS = {
@@ -50,6 +50,38 @@ public class MainActivity extends AppCompatActivity {
 //                    Toast.makeText(this, "App unable to set as default dialer: Code: " + result.getResultCode(), Toast.LENGTH_SHORT).show();
 //                Log.e("Main", "Result: " + result);
 //            });
+
+    @Override
+    public void onDeleteClick(int position) {
+        String numberToDelete = blockedNumbers.get(position);
+        unblockNumber(numberToDelete, position);
+    }
+
+    private void unblockNumber(String number, int position) {
+        try {
+            // Create where clause
+            String where = BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER + "=?";
+            String[] args = new String[]{number};
+
+            // Delete from system blocked numbers
+            int deletedRows = getContentResolver().delete(
+                    BlockedNumberContract.BlockedNumbers.CONTENT_URI,
+                    where,
+                    args
+            );
+
+            if (deletedRows > 0) {
+                // Remove from local list and update UI
+                blockedNumbers.remove(position);
+                adapter.notifyItemRemoved(position);
+                Toast.makeText(this, "Number unblocked", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Failed to unblock number", Toast.LENGTH_SHORT).show();
+            }
+        } catch (SecurityException e) {
+            Toast.makeText(this, "Permission denied for unblocking", Toast.LENGTH_SHORT).show();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupRecyclerView() {
         RecyclerView recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new BlockedNumbersAdapter(blockedNumbers);
+        adapter = new BlockedNumbersAdapter(blockedNumbers, this);
         recyclerView.setAdapter(adapter);
     }
 
