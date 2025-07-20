@@ -449,8 +449,6 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
         return items;
     }
 
-    // Add this new method to MainActivity.java
-
     public static class DisplayItem {
         public final String displayString; // e.g., "+911234567XXX" or "+15551234"
         public final boolean isRange;
