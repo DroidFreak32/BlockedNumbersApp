@@ -3,6 +3,7 @@ import android.app.role.RoleManager;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.BlockedNumberContract;
@@ -10,8 +11,10 @@ import android.widget.Button;
 
 import androidx.annotation.NonNull;
 
+import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.gson.Gson;
@@ -21,8 +24,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import android.Manifest;
+import android.widget.ToggleButton;
 
 import androidx.core.app.ActivityCompat;
 
@@ -41,6 +46,12 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
 
     private BlockedNumbersAdapter adapter;
     private final List<String> blockedNumbers = new ArrayList<>();
+
+    private EditText etPhoneNumber;
+    private boolean ascendingSort = true;
+    private ToggleButton btnSort;
+    private Drawable ascendingDrawable;
+    private Drawable descendingDrawable;
 
 //    private final ActivityResultLauncher<Intent> roleRequestLauncher =
 //            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -87,6 +98,26 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        etPhoneNumber = findViewById(R.id.etPhoneNumber);
+        btnSort = findViewById(R.id.btnSort);
+        Button btnAdd = findViewById(R.id.btnAdd);
+        // Set up click listeners
+        btnAdd.setOnClickListener(v -> addNumberToBlocklist());
+        btnSort.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            ascendingSort = !isChecked;
+            sortBlockedNumbers();
+        });
+
+        ascendingDrawable = ContextCompat.getDrawable(this, R.drawable.ic_sort_a);
+        descendingDrawable = ContextCompat.getDrawable(this, R.drawable.ic_sort_d);
+
+        btnSort = findViewById(R.id.btnSort);
+        btnSort.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            ascendingSort = !isChecked;
+            updateSortButtonDrawable();
+            sortBlockedNumbers();
+        });
+
         checkAndGrantDialerRole();
     }
 
@@ -210,6 +241,55 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
             Toast.makeText(this, "Import successful", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "Import failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void addNumberToBlocklist() {
+        String number = etPhoneNumber.getText().toString().trim();
+        if (number.isEmpty()) {
+            Toast.makeText(this, "Please enter a phone number", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (blockedNumbers.contains(number)) {
+            Toast.makeText(this, "Number already blocked", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        ContentValues values = new ContentValues();
+        values.put(BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER, number);
+
+        try {
+            getContentResolver().insert(
+                    BlockedNumberContract.BlockedNumbers.CONTENT_URI,
+                    values
+            );
+
+            blockedNumbers.add(number);
+            sortBlockedNumbers(); // Maintain current sort order
+            etPhoneNumber.setText("");
+            Toast.makeText(this, "Number blocked", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Failed to block number: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void sortBlockedNumbers() {
+        Collections.sort(blockedNumbers, (n1, n2) -> {
+            if (ascendingSort) {
+                return n1.compareTo(n2);
+            } else {
+                return n2.compareTo(n1);
+            }
+        });
+        adapter.notifyDataSetChanged();
+    }
+
+    private void updateSortButtonDrawable() {
+        if (btnSort.isChecked()){
+            btnSort.setBackground(descendingDrawable);
+        } else {
+            btnSort.setBackground(ascendingDrawable);
         }
     }
 }

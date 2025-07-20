@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">Blocked Numbers</string>
-    <string name="export_blocked_numbers">Export</string>
-    <string name="import_blocked_numbers">Import</string>
+    <string name="export_blocked_numbers">Export Json</string>
+    <string name="import_blocked_numbers">Import Json</string>
     <string name="delete_number">Delete Number</string>
+    <string name="enter_phone_number">Enter Phone Number</string>
+    <string name="sort_order">Sort Order</string>
 </resources>
