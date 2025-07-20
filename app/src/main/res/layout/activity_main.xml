@@ -32,7 +32,16 @@
     </LinearLayout>
 
     <!-- Add Number Section -->
+    <TextView
+        android:id="@+id/blockNumberTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/block_number_title"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium" />
+
     <LinearLayout
+        android:id="@+id/addSingleNumberLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -43,6 +52,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="3"
+            android:autofillHints=""
             android:hint="@string/enter_phone_number"
             android:inputType="phone"
             android:imeOptions="actionDone"/>
@@ -54,7 +64,7 @@
             android:layout_weight="0.5"
             android:paddingHorizontal="0dp"
             android:minWidth="0dp"
-            android:text="+"
+            android:text="@string/plus_sign"
             android:layout_marginStart="8dp"/>
 
         <ToggleButton
@@ -67,6 +77,65 @@
             android:background="@drawable/ic_sort_a"
             android:layout_marginStart="8dp"
             android:backgroundTint="?android:colorActivatedHighlight"/>
+    </LinearLayout>
+
+    <!-- Add Number Range Section -->
+    <TextView
+        android:id="@+id/tvRangeTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/block_number_range"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium" />
+
+    <LinearLayout
+        android:id="@+id/addRangeNumberPrefix"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/etPrefix"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:hint="@string/prefix_ex"
+            android:inputType="phone" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/addRangeNumberSuffix"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/etStartSuffix"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:hint="@string/start_prefix_ex"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etEndSuffix"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:hint="@string/end_prefix_ex"
+            android:inputType="number" />
+
+        <Button
+            android:id="@+id/btnBlockRange"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="@string/block_range"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
     </LinearLayout>
 
     <!-- RecyclerView -->

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="start_prefix_ex">Start (000)</string>
+    <string name="end_prefix_ex">End (999)</string>
+    <string name="block_range">Block Range</string>
+    <string name="block_number_range">Block a Number Range</string>
+    <string name="plus_sign">+</string>
+</resources>

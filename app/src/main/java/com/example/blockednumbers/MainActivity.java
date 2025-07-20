@@ -1,4 +1,6 @@
 package com.example.blockednumbers;
+
+import android.Manifest;
 import android.app.role.RoleManager;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -8,28 +10,24 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.BlockedNumberContract;
 import android.widget.Button;
-
-import androidx.annotation.NonNull;
-
 import android.widget.EditText;
 import android.widget.Toast;
+import android.widget.ToggleButton;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import android.Manifest;
-import android.widget.ToggleButton;
-
-import androidx.core.app.ActivityCompat;
 
 public class MainActivity extends AppCompatActivity implements BlockedNumbersAdapter.OnDeleteClickListener {
     private static final int REQUEST_CODE_ROLE_DIALER = 1;
@@ -47,7 +45,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     private BlockedNumbersAdapter adapter;
     private final List<String> blockedNumbers = new ArrayList<>();
 
-    private EditText etPhoneNumber;
+    private EditText etPhoneNumber, etPrefix, etStartSuffix, etEndSuffix;
     private boolean ascendingSort = true;
     private ToggleButton btnSort;
     private Drawable ascendingDrawable;
@@ -99,6 +97,10 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         etPhoneNumber = findViewById(R.id.etPhoneNumber);
+        etPrefix = findViewById(R.id.etPrefix);
+        etStartSuffix = findViewById(R.id.etStartSuffix);
+        etEndSuffix = findViewById(R.id.etEndSuffix);
+
         btnSort = findViewById(R.id.btnSort);
         Button btnAdd = findViewById(R.id.btnAdd);
         // Set up click listeners
@@ -107,6 +109,9 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
             ascendingSort = !isChecked;
             sortBlockedNumbers();
         });
+
+        Button btnBlockRange = findViewById(R.id.btnBlockRange);
+        btnBlockRange.setOnClickListener(v -> addRangeToBlocklist());
 
         ascendingDrawable = ContextCompat.getDrawable(this, R.drawable.ic_sort_a);
         descendingDrawable = ContextCompat.getDrawable(this, R.drawable.ic_sort_d);
@@ -160,7 +165,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
         blockedNumbers.clear();
         try (Cursor cursor = getContentResolver().query(
                 BlockedNumberContract.BlockedNumbers.CONTENT_URI,
-                new String[]{BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER},
+                new String[]{BlockedNumberContract.BlockedNumbers.COLUMN_E164_NUMBER},
                 null, null, null)) {
             if (cursor != null) {
                 while (cursor.moveToNext()) {
@@ -230,7 +235,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
 
             for (String number : numbers) {
                 ContentValues values = new ContentValues();
-                values.put(BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER, number);
+                values.put(BlockedNumberContract.BlockedNumbers.COLUMN_E164_NUMBER, number);
                 getContentResolver().insert(
                         BlockedNumberContract.BlockedNumbers.CONTENT_URI,
                         values
@@ -275,7 +280,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     }
 
     private void sortBlockedNumbers() {
-        Collections.sort(blockedNumbers, (n1, n2) -> {
+        blockedNumbers.sort((n1, n2) -> {
             if (ascendingSort) {
                 return n1.compareTo(n2);
             } else {
@@ -290,6 +295,68 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
             btnSort.setBackground(descendingDrawable);
         } else {
             btnSort.setBackground(ascendingDrawable);
+        }
+    }
+
+    private void addRangeToBlocklist() {
+        String prefix = etPrefix.getText().toString().trim();
+        String startStr = etStartSuffix.getText().toString().trim();
+        String endStr = etEndSuffix.getText().toString().trim();
+
+        if (prefix.isEmpty() || startStr.isEmpty() || endStr.isEmpty()) {
+            Toast.makeText(this, "All range fields are required", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            long startSuffix = Long.parseLong(startStr);
+            long endSuffix = Long.parseLong(endStr);
+
+            if (startSuffix > endSuffix) {
+                Toast.makeText(this, "Start suffix cannot be greater than end suffix", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Add a safety limit to prevent blocking too many numbers at once and causing ANRs
+            long rangeSize = endSuffix - startSuffix + 1;
+            if (rangeSize > 1000) {
+                Toast.makeText(this, "Range is too large. Please block up to 1000 numbers at a time.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            // Use the length of the start suffix string to determine zero-padding
+            int suffixLength = startStr.length();
+            String format = "%0" + suffixLength + "d";
+
+            ArrayList<ContentValues> valuesList = new ArrayList<>();
+            for (long i = startSuffix; i <= endSuffix; i++) {
+                String number = prefix + String.format(format, i);
+                ContentValues values = new ContentValues();
+                values.put(BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER, number);
+                valuesList.add(values);
+            }
+
+            // Use bulkInsert for efficiency
+            ContentValues[] valuesArray = valuesList.toArray(new ContentValues[0]);
+            int insertedRows = getContentResolver().bulkInsert(
+                    BlockedNumberContract.BlockedNumbers.CONTENT_URI,
+                    valuesArray
+            );
+
+            if (insertedRows > 0) {
+                Toast.makeText(this, insertedRows + " numbers blocked", Toast.LENGTH_SHORT).show();
+                loadBlockedNumbers(); // Refresh the list from the content provider
+                etPrefix.setText("");
+                etStartSuffix.setText("");
+                etEndSuffix.setText("");
+            } else {
+                Toast.makeText(this, "Failed to block numbers", Toast.LENGTH_SHORT).show();
+            }
+
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, "Invalid start or end suffix. Please enter valid numbers.", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Failed to block range: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 }
