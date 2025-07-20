@@ -3,22 +3,31 @@ package com.example.blockednumbers;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 import android.widget.ImageButton;
+import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
 import java.util.List;
 
 public class BlockedNumbersAdapter extends RecyclerView.Adapter<BlockedNumbersAdapter.ViewHolder> {
-    private final List<String> blockedNumbers;
+    //    private final List<String> blockedNumbers;
+    private final List<MainActivity.DisplayItem> displayItems;
     private final OnDeleteClickListener deleteClickListener;
 
     public interface OnDeleteClickListener {
         void onDeleteClick(int position);
     }
 
-    public BlockedNumbersAdapter(List<String> blockedNumbers, OnDeleteClickListener listener) {
-        this.blockedNumbers = blockedNumbers;
+//    public BlockedNumbersAdapter(List<String> blockedNumbers, OnDeleteClickListener listener) {
+//        this.blockedNumbers = blockedNumbers;
+//        this.deleteClickListener = listener;
+//    }
+
+    public BlockedNumbersAdapter(List<MainActivity.DisplayItem> displayItems, OnDeleteClickListener listener) {
+        // this.blockedNumbers = blockedNumbers; // REMOVE THIS LINE
+        this.displayItems = displayItems; // ADD THIS LINE
         this.deleteClickListener = listener;
     }
 
@@ -32,8 +41,9 @@ public class BlockedNumbersAdapter extends RecyclerView.Adapter<BlockedNumbersAd
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        String number = blockedNumbers.get(position);
-        holder.tvNumber.setText(number);
+//        String number = blockedNumbers.get(position);
+        MainActivity.DisplayItem item = displayItems.get(position);
+        holder.tvNumber.setText(item.displayString);
 
         holder.btnDelete.setOnClickListener(v -> {
             if (deleteClickListener != null) {
@@ -44,7 +54,7 @@ public class BlockedNumbersAdapter extends RecyclerView.Adapter<BlockedNumbersAd
 
     @Override
     public int getItemCount() {
-        return blockedNumbers.size();
+        return displayItems.size();
     }
 
     // Update ViewHolder class

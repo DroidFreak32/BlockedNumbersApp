@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.BufferedReader;
@@ -27,6 +28,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements BlockedNumbersAdapter.OnDeleteClickListener {
@@ -43,8 +45,8 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     private static final int REQUEST_CODE_IMPORT = 4;
 
     private BlockedNumbersAdapter adapter;
-    private final List<String> blockedNumbers = new ArrayList<>();
-
+    private final List<String> allBlockedNumbers = new ArrayList<>(); // Holds all raw numbers
+    private final List<DisplayItem> displayedItems = new ArrayList<>(); // Holds summarized items for display
     private EditText etPhoneNumber, etPrefix, etStartSuffix, etEndSuffix;
     private boolean ascendingSort = true;
     private ToggleButton btnSort;
@@ -62,33 +64,43 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
 
     @Override
     public void onDeleteClick(int position) {
-        String numberToDelete = blockedNumbers.get(position);
-        unblockNumber(numberToDelete, position);
+        if (position < 0 || position >= displayedItems.size()) return;
+
+        DisplayItem itemToDelete = displayedItems.get(position);
+        // This list contains one number for single items, and multiple for ranges
+        List<String> numbersToUnblock = itemToDelete.originalNumbers;
+
+        int unblockedCount = 0;
+        for (String number : numbersToUnblock) {
+            if (unblockNumber(number)) {
+                unblockedCount++;
+            }
+        }
+
+        if (unblockedCount > 0) {
+            Toast.makeText(this, unblockedCount + " number(s) unblocked", Toast.LENGTH_SHORT).show();
+            // Reload the entire list to re-calculate groups
+            loadBlockedNumbers();
+        } else {
+            Toast.makeText(this, "Failed to unblock number(s)", Toast.LENGTH_SHORT).show();
+        }
     }
 
-    private void unblockNumber(String number, int position) {
+    // Modify unblockNumber to return a boolean and not touch the adapter directly
+    private boolean unblockNumber(String number) {
         try {
-            // Create where clause
             String where = BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER + "=?";
             String[] args = new String[]{number};
 
-            // Delete from system blocked numbers
             int deletedRows = getContentResolver().delete(
                     BlockedNumberContract.BlockedNumbers.CONTENT_URI,
                     where,
                     args
             );
-
-            if (deletedRows > 0) {
-                // Remove from local list and update UI
-                blockedNumbers.remove(position);
-                adapter.notifyItemRemoved(position);
-                Toast.makeText(this, "Number unblocked", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Failed to unblock number", Toast.LENGTH_SHORT).show();
-            }
+            return deletedRows > 0;
         } catch (SecurityException e) {
-            Toast.makeText(this, "Permission denied for unblocking", Toast.LENGTH_SHORT).show();
+            // Log the exception for debugging
+            return false;
         }
     }
 
@@ -149,7 +161,8 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     private void setupRecyclerView() {
         RecyclerView recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new BlockedNumbersAdapter(blockedNumbers, this);
+//        adapter = new BlockedNumbersAdapter(blockedNumbers, this);
+        adapter = new BlockedNumbersAdapter(displayedItems, this);
         recyclerView.setAdapter(adapter);
     }
 
@@ -162,18 +175,22 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     }
 
     private void loadBlockedNumbers() {
-        blockedNumbers.clear();
+        allBlockedNumbers.clear();
         try (Cursor cursor = getContentResolver().query(
                 BlockedNumberContract.BlockedNumbers.CONTENT_URI,
-                new String[]{BlockedNumberContract.BlockedNumbers.COLUMN_E164_NUMBER},
+                new String[]{BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER},
                 null, null, null)) {
             if (cursor != null) {
+                int numberIndex = cursor.getColumnIndex(BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER);
                 while (cursor.moveToNext()) {
-                    blockedNumbers.add(cursor.getString(0));
+                    String number = cursor.getString(numberIndex);
+                    if (number != null) {
+                        allBlockedNumbers.add(number);
+                    }
                 }
-                adapter.notifyDataSetChanged();
             }
         }
+        sortAndProcessBlockedNumbers();
     }
 
     private void exportBlockedNumbers() {
@@ -210,9 +227,16 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     }
 
     private void handleExport(Uri uri) {
+        if (uri == null) {
+            Toast.makeText(this, "Export failed: Invalid file path", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try (OutputStream outputStream = getContentResolver().openOutputStream(uri)) {
-            String json = new Gson().toJson(blockedNumbers);
-            outputStream.write(json.getBytes());
+            String json = new GsonBuilder().setPrettyPrinting().create().toJson(allBlockedNumbers);
+            if (outputStream != null)
+                outputStream.write(json.getBytes());
+            else
+                Toast.makeText(this, "Export failed: No data available", Toast.LENGTH_SHORT).show();
             Toast.makeText(this, "Export successful", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -235,7 +259,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
 
             for (String number : numbers) {
                 ContentValues values = new ContentValues();
-                values.put(BlockedNumberContract.BlockedNumbers.COLUMN_E164_NUMBER, number);
+                values.put(BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER, number);
                 getContentResolver().insert(
                         BlockedNumberContract.BlockedNumbers.CONTENT_URI,
                         values
@@ -256,7 +280,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
             return;
         }
 
-        if (blockedNumbers.contains(number)) {
+        if (allBlockedNumbers.contains(number)) {
             Toast.makeText(this, "Number already blocked", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -270,7 +294,7 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
                     values
             );
 
-            blockedNumbers.add(number);
+            allBlockedNumbers.add(number);
             sortBlockedNumbers(); // Maintain current sort order
             etPhoneNumber.setText("");
             Toast.makeText(this, "Number blocked", Toast.LENGTH_SHORT).show();
@@ -280,16 +304,30 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
     }
 
     private void sortBlockedNumbers() {
-        blockedNumbers.sort((n1, n2) -> {
+        allBlockedNumbers.sort((n1, n2) -> {
             if (ascendingSort) {
                 return n1.compareTo(n2);
             } else {
                 return n2.compareTo(n1);
             }
         });
-        adapter.notifyDataSetChanged();
+//        adapter.notifyDataSetChanged();
+        sortAndProcessBlockedNumbers();
     }
 
+    // New private helper to avoid code duplication
+    private void sortAndProcessBlockedNumbers() {
+        // 1. Sort the raw data
+        allBlockedNumbers.sort((n1, n2) -> ascendingSort ? n1.compareTo(n2) : n2.compareTo(n1));
+
+        // 2. Group the sorted data
+        List<DisplayItem> newItems = groupAndSummarizeNumbers(allBlockedNumbers);
+
+        // 3. Update the adapter's list
+        displayedItems.clear();
+        displayedItems.addAll(newItems);
+        adapter.notifyDataSetChanged();
+    }
     private void updateSortButtonDrawable() {
         if (btnSort.isChecked()){
             btnSort.setBackground(descendingDrawable);
@@ -357,6 +395,71 @@ public class MainActivity extends AppCompatActivity implements BlockedNumbersAda
             Toast.makeText(this, "Invalid start or end suffix. Please enter valid numbers.", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "Failed to block range: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Groups a sorted list of numbers into DisplayItems, summarizing ranges.
+     *
+     * @param numbers A list of phone numbers, MUST be sorted.
+     * @return A list of DisplayItems ready for the adapter.
+     */
+    private List<DisplayItem> groupAndSummarizeNumbers(List<String> numbers) {
+        final int SUFFIX_LENGTH = 3;
+        final int MIN_GROUP_SIZE = 5; // Minimum numbers in a sequence to be grouped
+
+        List<DisplayItem> items = new ArrayList<>();
+        if (numbers.isEmpty()) {
+            return items;
+        }
+
+        for (int i = 0; i < numbers.size(); ) {
+            String currentNumber = numbers.get(i);
+            if (currentNumber.length() <= SUFFIX_LENGTH) {
+                // Number is too short to have a prefix, add as single item
+                items.add(new DisplayItem(currentNumber, false, Collections.singletonList(currentNumber)));
+                i++;
+                continue;
+            }
+
+            String prefix = currentNumber.substring(0, currentNumber.length() - SUFFIX_LENGTH);
+            List<String> potentialGroup = new ArrayList<>();
+            potentialGroup.add(currentNumber);
+
+            // Look ahead to find other numbers with the same prefix
+            int j = i + 1;
+            while (j < numbers.size() && numbers.get(j).startsWith(prefix)) {
+                potentialGroup.add(numbers.get(j));
+                j++;
+            }
+
+            if (potentialGroup.size() >= MIN_GROUP_SIZE) {
+                // We have enough numbers to form a group
+                String displayString = prefix + "XXX";
+                items.add(new DisplayItem(displayString, true, potentialGroup));
+            } else {
+                // Not enough numbers for a group, add them individually
+                for (String num : potentialGroup) {
+                    items.add(new DisplayItem(num, false, Collections.singletonList(num)));
+                }
+            }
+            // Jump the main loop index to the end of the processed group
+            i += potentialGroup.size();
+        }
+        return items;
+    }
+
+    // Add this new method to MainActivity.java
+
+    public static class DisplayItem {
+        public final String displayString; // e.g., "+911234567XXX" or "+15551234"
+        public final boolean isRange;
+        public final List<String> originalNumbers; // The actual numbers this item represents
+
+        public DisplayItem(String displayString, boolean isRange, List<String> originalNumbers) {
+            this.displayString = displayString;
+            this.isRange = isRange;
+            this.originalNumbers = Collections.unmodifiableList(originalNumbers);
         }
     }
 }
